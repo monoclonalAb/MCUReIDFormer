@@ -1,6 +1,6 @@
 # MCUReIDFormer
 
-MCU-constrained Neural Architecture Search for Vision Transformer-based animal person re-identification.
+MCU-constrained aims to create a Neural Architecture Search for Vision Transformer-based animal person re-identification.
 
 ---
 
