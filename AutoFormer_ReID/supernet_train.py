@@ -359,8 +359,19 @@ def main(args):
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
+        if args.reid:
+            # Filter out incompatible keys (e.g. head vs bottleneck, pos_embed shape)
+            model_state = model_without_ddp.state_dict()
+            pretrained = checkpoint['model']
+            filtered = {k: v for k, v in pretrained.items()
+                        if k in model_state and v.shape == model_state[k].shape}
+            missing, unexpected = model_without_ddp.load_state_dict(filtered, strict=False)
+            print(f"=> Loaded pretrained weights (skipped incompatible keys)")
+            print(f"   Matched: {len(filtered)}, Missing: {len(missing)}, Unexpected: {len(unexpected)}")
+        else:
+            model_without_ddp.load_state_dict(checkpoint['model'])
+        if (not args.eval and args.mode != 'retrain'
+                and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
@@ -446,7 +457,7 @@ def main(args):
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+                f.write(json.dumps(log_stats, default=lambda o: o.item() if hasattr(o, "item") else str(o)) + "\n")
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

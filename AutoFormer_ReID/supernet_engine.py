@@ -249,6 +249,10 @@ def compute_cmc_map(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
     indices = np.argsort(distmat, axis=1)  # sort gallery by ascending distance
     matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
 
+    # Single-camera datasets (e.g. iPanda50, ATRW) encode a constant camid in filenames.
+    # Applying the Market-1501 (same-pid & same-camid) filter would remove every true match.
+    single_cam = np.unique(np.concatenate([q_camids, g_camids])).size == 1
+
     all_cmc = []
     all_AP = []
 
@@ -257,8 +261,10 @@ def compute_cmc_map(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         q_camid = q_camids[q_idx]
 
         order = indices[q_idx]
-        # Remove gallery samples with same pid AND same camid
-        remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
+        if single_cam:
+            remove = np.zeros_like(order, dtype=bool)
+        else:
+            remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
         keep = ~remove
 
         raw_cmc = matches[q_idx][keep]
@@ -277,6 +283,10 @@ def compute_cmc_map(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         precision = tmp_cmc / (np.arange(len(tmp_cmc)) + 1.0)
         ap = (precision * raw_cmc).sum() / num_rel
         all_AP.append(ap)
+
+    if len(all_cmc) == 0:
+        print("Warning: no query has a valid gallery match — returning zeros")
+        return np.zeros(max_rank, dtype=np.float32), 0.0
 
     all_cmc = np.asarray(all_cmc).astype(np.float32)
     all_cmc = all_cmc.sum(axis=0) / num_q  # average over all queries

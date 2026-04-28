@@ -301,6 +301,32 @@ class EvolutionSearcher(object):
 
             self.save_checkpoint()
 
+        # Final report and save best config
+        fitness_key = 'mAP' if self.reid_mode else 'acc'
+        best_cand = self.keep_top_k[50][0]
+        best_fitness = self.vis_dict[best_cand][fitness_key]
+
+        print(f'\n{"="*80}')
+        print('Search Complete!')
+        print(f'{"="*80}')
+        print(f'\nBest architecture ({fitness_key}: {best_fitness:.4f}):')
+        print(best_cand)
+
+        depth, mlp_ratio, num_heads, embed_dim = decode_cand_tuple(best_cand)
+        best_config = {
+            'DEPTH': depth,
+            'MLP_RATIO': mlp_ratio,
+            'NUM_HEADS': num_heads,
+            'EMBED_DIM': embed_dim,
+        }
+
+        config_path = os.path.join(self.output_dir, 'best_config.yaml')
+        with open(config_path, 'w') as f:
+            yaml.dump({'RETRAIN': best_config, 'SUPERNET': dict(cfg.SUPERNET),
+                       'SEARCH_SPACE': dict(cfg.SEARCH_SPACE)}, f)
+
+        print(f'Best config saved to {config_path}')
+
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=64, type=int)
